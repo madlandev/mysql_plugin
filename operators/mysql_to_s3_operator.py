@@ -132,7 +132,7 @@ class MySQLToS3Operator(BaseOperator):
         return results
 
     def s3_upload(self, results, schema=False):
-        s3 = S3Hook(s3_conn_id=self.s3_conn_id)
+        s3 = S3Hook(aws_conn_id=self.s3_conn_id)
         key = '{0}'.format(self.s3_key)
         # If the file being uploaded to s3 is a schema, append "_schema" to the
         # end of the file name.
@@ -146,5 +146,4 @@ class MySQLToS3Operator(BaseOperator):
             key=key,
             replace=True
         )
-        s3.connection.close()
         logging.info('File uploaded to s3')
