@@ -9,7 +9,7 @@ import logging
 
 class MySQLToS3Operator(BaseOperator):
     """
-    MySQL to Spreadsheet Operator
+    MySQL to S3 Operator
 
     NOTE: When using the MySQLToS3Operator, it is necessary to set the cursor
     to "dictcursor" in the MySQL connection settings within "Extra"
@@ -47,7 +47,7 @@ class MySQLToS3Operator(BaseOperator):
                                     records with based on the incremental_key.
                                     Only required if using the incremental_key
                                     field.
-    :type end:                       timestamp (YYYY-MM-DD HH:MM:SS)
+    :type end:                      timestamp (YYYY-MM-DD HH:MM:SS)
     """
 
     template_fields = ['start', 'end', 's3_key']
