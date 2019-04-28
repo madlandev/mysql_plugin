@@ -34,6 +34,9 @@ class MySQLToS3Operator(BaseOperator):
                                     schema information for the table as well as
                                     the data.
     :type package_schema:           boolean
+    :param s3_schema_key:           *(optional)* The destination s3 key for schema.
+                                    Only required if package_schema=True
+    :type s3_schema_key:            string
     :param incremental_key:         *(optional)* The incrementing key to filter
                                     the source data with. Currently only
                                     accepts a column with type of timestamp.
@@ -50,7 +53,7 @@ class MySQLToS3Operator(BaseOperator):
     :type end:                      timestamp (YYYY-MM-DD HH:MM:SS)
     """
 
-    template_fields = ['start', 'end', 's3_key']
+    template_fields = ['start', 'end', 's3_key', 's3_schema_key']
 
     @apply_defaults
     def __init__(self,
@@ -60,6 +63,7 @@ class MySQLToS3Operator(BaseOperator):
                  s3_bucket,
                  s3_key,
                  package_schema=False,
+                 s3_schema_key=None,
                  incremental_key=None,
                  start=None,
                  end=None,
@@ -72,6 +76,7 @@ class MySQLToS3Operator(BaseOperator):
         self.s3_bucket = s3_bucket
         self.s3_key = s3_key
         self.package_schema = package_schema
+        self.s3_schema_key = s3_schema_key
         self.incremental_key = incremental_key
         self.start = start
         self.end = end
@@ -79,8 +84,10 @@ class MySQLToS3Operator(BaseOperator):
     def execute(self, context):
         hook = AstroMySqlHook(self.mysql_conn_id)
         self.get_records(hook)
-        if self.package_schema:
+        if all([self.package_schema, self.s3_schema_key]):
             self.get_schema(hook, self.mysql_table)
+        if self.package_schema and not self.s3_schema_key:
+            logging.warning('Schema s3 key was not provided, schema was not uploaded to S3.')
 
     def get_schema(self, hook, table):
         logging.info('Initiating schema retrieval.')
@@ -88,12 +95,12 @@ class MySQLToS3Operator(BaseOperator):
         output_array = []
         for i in results:
             new_dict = {}
-            new_dict['name']=i['COLUMN_NAME']
-            new_dict['type']=i['COLUMN_TYPE']
-            
+            new_dict['name'] = i['COLUMN_NAME']
+            new_dict['type'] = i['COLUMN_TYPE']
+
             if len(new_dict) == 2:
                 output_array.append(new_dict)
-        self.s3_upload(json.dumps(output_array), schema=True)
+        self.s3_upload(data=json.dumps(output_array), s3_key=self.s3_schema_key)
 
     def get_records(self, hook):
         logging.info('Initiating record retrieval.')
@@ -128,22 +135,15 @@ class MySQLToS3Operator(BaseOperator):
         results = [dict([k, str(v)] if v is not None else [k, v]
                    for k, v in i.items()) for i in results]
         results = '\n'.join([json.dumps(i) for i in results])
-        self.s3_upload(results)
+        self.s3_upload(data=results, s3_key=self.s3_key)
         return results
 
-    def s3_upload(self, results, schema=False):
+    def s3_upload(self, data, s3_key):
         s3 = S3Hook(aws_conn_id=self.s3_conn_id)
-        key = '{0}'.format(self.s3_key)
-        # If the file being uploaded to s3 is a schema, append "_schema" to the
-        # end of the file name.
-        if schema and key[-5:] == '.json':
-            key = key[:-5] + '_schema' + key[-5:]
-        if schema and key[-4:] == '.csv':
-            key = key[:-4] + '_schema' + key[-4:]
         s3.load_string(
-            string_data=results,
+            string_data=data,
             bucket_name=self.s3_bucket,
-            key=key,
+            key=s3_key,
             replace=True
         )
         logging.info('File uploaded to s3')
