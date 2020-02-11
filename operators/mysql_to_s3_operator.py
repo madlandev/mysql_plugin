@@ -132,7 +132,7 @@ class MySQLToS3Operator(BaseOperator):
         # Iterate through list of dictionaries (one dict per row queried)
         # and convert datetime and date values to isoformat.
         # (e.g. datetime(2017, 08, 01) --> "2017-08-01T00:00:00")
-        results = [dict([k, str(v)] if v is not None else [k, v]
+        results = [dict([k.lower(), str(v)] if v is not None else [k.lower(), v]
                    for k, v in i.items()) for i in results]
         results = '\n'.join([json.dumps(i) for i in results])
         self.s3_upload(data=results, s3_key=self.s3_key)
